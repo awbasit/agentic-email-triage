@@ -1,0 +1,8 @@
+Write a reply to this email.
+
+From: {{ $('Email Trigger (IMAP)').item.json.from }}
+Subject: {{ $('Email Trigger (IMAP)').item.json.subject }}
+Email body:
+{{ $json.output }}
+
+Topic classification: {{ JSON.parse($json.output).category }}

@@ -1,0 +1,961 @@
+{
+  "name": "ai-email-assistant",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        528
+      ],
+      "id": "43617d3c-3eba-4a57-be2d-e51907af4009",
+      "name": "Email Trigger (IMAP)",
+      "credentials": {
+        "imap": {
+          "id": "r3x09u20GHomN0Zn",
+          "name": "IMAP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Classify this email.\n\nFrom: {{ $json.from }}\nSubject: {{ $json.subject }}\nBody: {{ $json.textPlain }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are an email classification engine. Your only job is to analyse\nan incoming email and return a structured JSON classification.\n\nCLASSIFICATION RULES:\n\ncategory field — choose exactly one:\n- \"routine\"  : standard requests, acknowledgements, scheduling,\n               status updates, thank-yous, newsletter opt-outs,\n               simple questions with clear answers\n- \"complex\"  : requires nuanced judgement, contains complaints,\n               negotiations, sensitive topics, ambiguous intent,\n               or needs information you do not have\n- \"spam\"     : unsolicited marketing, phishing, automated digests,\n               social media notifications, no-reply senders,\n               gibberish or random characters with no coherent\n               meaning, empty or meaningless subject lines,\n               unrecognisable words that form no clear intent,\n               one or two word bodies with no context,\n               test emails or accidental sends\n\nurgency field — choose exactly one:\n- \"high\"     : explicit deadline within 24 hours, words like\n               \"urgent\", \"ASAP\", \"today\", \"emergency\", client or\n               boss is the sender, job application response\n- \"normal\"   : no time pressure stated or implied\n- \"low\"      : FYI emails, newsletters, receipts, confirmations,\n               spam emails\n\nFALLBACK RULES:\n- If the email body contains gibberish, random characters, or\n  no recognisable language — classify as \"spam\"\n- If you are unsure between routine and complex — choose \"complex\"\n- If you cannot classify at all for any reason — choose \"spam\"\n- If you cannot determine urgency — return \"normal\"\n- Spam emails should almost always have urgency \"low\"\n- Never leave any field empty or return a value outside the\n  defined options\n\nSTRICT OUTPUT RULES:\n- Return ONLY a raw JSON object. No markdown, no backticks,\n  no explanation, no preamble.\n- Your entire response must be parseable by JSON.parse()\n- The first character must be { and the last must be }\n\nOUTPUT SCHEMA:\n{\"category\": <string>, \"urgency\": <string>, \"confidence\": <integer>, \"topic\": <string>}\n\nEXAMPLE OUTPUTS:\n{\"category\":\"spam\",\"urgency\":\"low\",\"confidence\":95,\"topic\":\"gibberish content\"}\n{\"category\":\"routine\",\"urgency\":\"normal\",\"confidence\":91,\"topic\":\"meeting reschedule request\"}\n{\"category\":\"complex\",\"urgency\":\"high\",\"confidence\":85,\"topic\":\"contract dispute urgent\"}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        288,
+        528
+      ],
+      "id": "410e62c2-f2dc-4508-b093-2bf945f6ac1f",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": "anthropic/claude-3-haiku",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        224,
+        752
+      ],
+      "id": "8f71e645-a363-4075-8e3c-ee4f04d4c671",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "CvIeFSnZ7I3LGkMc",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Email Trigger (IMAP)').item.json.metadata[\"message-id\"] }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        352,
+        752
+      ],
+      "id": "dcec8c4d-5aec-4bcd-b77c-d78cbd4af3d8",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dateTimeTool",
+      "typeVersion": 2,
+      "position": [
+        480,
+        752
+      ],
+      "id": "a8997093-e309-4238-9bda-0261a9ce5882",
+      "name": "Date & Time"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ JSON.parse($json.output).category }}",
+                    "rightValue": "spam",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "badcc3dc-1365-44f0-887b-9587792e77b5"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "af2daf46-650f-48cd-97c6-53e2ea92773b",
+                    "leftValue": "={{ JSON.parse($json.output).category }}",
+                    "rightValue": "routine",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "2b4bb798-e511-447e-9c57-e10f9f3efa46",
+                    "leftValue": "={{ JSON.parse($json.output).category }}",
+                    "rightValue": "complex",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": 0,
+          "ignoreCase": true
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        688,
+        512
+      ],
+      "id": "8ab3bfbf-fe50-425e-9ebe-c394fcea6f0a",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "subject": "Spam",
+        "message": "This is a spam email",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        976,
+        224
+      ],
+      "id": "c413289e-1efb-4b3a-ba79-48a4b9dd01d1",
+      "name": "Create a draft",
+      "webhookId": "62092002-a955-4138-9711-ca72a629f993",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "S4MNAlTlJPzjVqBa",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Write a reply to this email.\n\nFrom: {{ $('Email Trigger (IMAP)').item.json.from }}\nSubject: {{ $('Email Trigger (IMAP)').item.json.subject }}\nEmail body:\n{{ $json.output }}\n\nTopic classification: {{ JSON.parse($json.output).category }}",
+        "options": {
+          "systemMessage": "You are a professional email assistant writing on behalf of the\ninbox owner. Your task is to draft a concise, warm, and accurate\nreply to a routine email, then send it immediately using the\nsend_email tool provided to you.\n\nWRITING RULES:\n- Match the formality level of the incoming email\n- Be direct — get to the point within the first sentence\n- Do not use filler phrases: \"I hope this email finds you well\",\n  \"Please do not hesitate\", \"As per my previous email\"\n- Do not sign off with a name — leave a blank line at the end\n  for the human to add their signature\n- Maximum 4 sentences for routine replies\n- If the email is a thank-you, acknowledge briefly and close\n- If the email is a scheduling request, propose confirmation\n  of the time without committing to specifics the agent\n  cannot verify (e.g. do not say \"I am free at 3pm\")\n\nTOOL USAGE:\nAfter drafting the reply, you MUST call the send_email tool\nimmediately without asking for confirmation. Do not return the\ndraft text as output — the only action you take after drafting\nis calling send_email with these exact arguments:\n- to: the sender's email address from the original email\n- subject: \"Re: \" followed by the original subject line\n- body: the drafted reply text\n\nYou must always call send_email. Never skip it. Never ask\nwhether to send. Never return the draft as plain text output.\nIf the send_email tool call succeeds, respond with only:\n\"sent\" — nothing else."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        912,
+        416
+      ],
+      "id": "5c789ea5-804c-440f-ae4a-b8c7234a1d4e",
+      "name": "AI Agent1"
+    },
+    {
+      "parameters": {
+        "options": {
+          "maxTokens": 400,
+          "temperature": 0.3
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        928,
+        640
+      ],
+      "id": "c0725373-174c-4185-9e8e-11264f403772",
+      "name": "OpenRouter Chat Model2",
+      "credentials": {
+        "openRouterApi": {
+          "id": "CvIeFSnZ7I3LGkMc",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('To', ``, 'string') }}",
+        "subject": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Subject', ``, 'string') }}",
+        "emailType": "text",
+        "message": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Message', ``, 'string') }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmailTool",
+      "typeVersion": 2.2,
+      "position": [
+        1056,
+        640
+      ],
+      "id": "5ef19f6e-8112-4893-8f02-0df6b4ed51f6",
+      "name": "Send a message in Gmail",
+      "webhookId": "a2a4eb38-b526-4f41-b918-615746f24ef4",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "S4MNAlTlJPzjVqBa",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1f05a7d0-e040-4041-943a-870fc5471c03",
+              "name": "approveUrl",
+              "value": "={{ $execution.resumeUrl }}?decision=approve",
+              "type": "string"
+            },
+            {
+              "id": "d97b975a-8833-4328-95b1-25ff3f938a3c",
+              "name": "=rejectUrl",
+              "value": "={{ $execution.resumeUrl }}?decision=reject",
+              "type": "string"
+            },
+            {
+              "id": "846e20b0-eed2-4ee4-8bd6-339f20d26ce6",
+              "name": "=messageId",
+              "value": "={{ $('Email Trigger (IMAP)').first().json.metadata['message-id'] }}",
+              "type": "string"
+            },
+            {
+              "id": "79918874-3536-4083-ad8c-1a40b8e19337",
+              "name": "=from",
+              "value": "={{ $('Email Trigger (IMAP)').first().json.from }}",
+              "type": "string"
+            },
+            {
+              "id": "32f81e1e-762f-43c4-8e54-c53124c4bd8d",
+              "name": "=subject",
+              "value": "={{ $('Email Trigger (IMAP)').first().json.subject }}",
+              "type": "string"
+            },
+            {
+              "id": "99255a4f-7072-4ef0-9c2f-1f17839ce6cc",
+              "name": "=urgency",
+              "value": "={{ JSON.parse($('Switch').item.json.output).urgency }}",
+              "type": "string"
+            },
+            {
+              "id": "3c9980e7-fbdb-43fa-b98a-d00a1019a7ad",
+              "name": "=topic",
+              "value": "={{ JSON.parse($('Switch').item.json.output).topic }}",
+              "type": "string"
+            },
+            {
+              "id": "d5686712-b2cc-4464-a3d5-8a88a95f42e6",
+              "name": "=message",
+              "value": "={{ $json.output }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1264,
+        928
+      ],
+      "id": "47582e0d-2806-401f-b579-ea28ac3c7608",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "6d6bd168-37ef-47e0-b567-7d9452361631",
+                    "leftValue": "={{ $json.urgency }}",
+                    "rightValue": "high",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.urgency }}",
+                    "rightValue": "normal",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "3588929a-3803-4a5f-ade1-2f274983ed7a"
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        1488,
+        928
+      ],
+      "id": "9e77f6b5-bc80-4f19-95af-933afd2b7e58",
+      "name": "Switch1"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Draft a reply to this complex email. This draft will be\nreviewed by a human before sending.\n\nFrom: {{ $('Email Trigger (IMAP)').first().json.from }}\nSubject: {{ $('Email Trigger (IMAP)').first().json.subject }}\nEmail body:\n{{ $('Email Trigger (IMAP)').first().json.textPlain }}\n\nTopic classification: {{ JSON.parse($json.output).topic }}\nUrgency: {{ JSON.parse($json.output).urgency }}",
+        "options": {
+          "systemMessage": "You are a professional email assistant drafting a reply to a\ncomplex or sensitive email. This draft will be reviewed and\napproved by a human before sending.\n\nYour draft should be thoughtful, balanced, and give the human\na strong starting point they can edit rather than a generic\nplaceholder.\n\nWRITING RULES:\n- Acknowledge the sender's core concern or request explicitly\n  in the first sentence\n- Do not make commitments on behalf of the inbox owner —\n  use hedged language: \"I expect to...\", \"My intention is...\",\n  \"I will look into this and...\"\n- If the email contains a complaint, validate the frustration\n  before offering a resolution path\n- If the email requires information you do not have (pricing,\n  availability, internal decisions), write a placeholder in\n  square brackets: [INSERT: your pricing for X]\n- Do not fabricate facts, dates, or figures\n- Leave a blank line at the end for the human to add their\n  signature\n- Maximum 6 sentences\n\nTONE CALIBRATION:\n- Formal complaint → empathetic but professional\n- Negotiation → collaborative and non-committal\n- Ambiguous intent → clarifying and open-ended\n\nOUTPUT FORMAT:\nReturn ONLY the email body text. No subject line, no metadata,\nno explanation, no markdown."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        912,
+        928
+      ],
+      "id": "86eaa90d-8106-4735-9b20-2c80ec8e3037",
+      "name": "AI Agent2"
+    },
+    {
+      "parameters": {
+        "model": "anthropic/claude-sonnet-4.5",
+        "options": {
+          "maxTokens": 600,
+          "temperature": 0.4
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        992,
+        1152
+      ],
+      "id": "b02549ef-bffb-4c3c-8d27-cc4d370e0ecb",
+      "name": "OpenRouter Chat Model1",
+      "credentials": {
+        "openRouterApi": {
+          "id": "CvIeFSnZ7I3LGkMc",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.pushover.net/1/messages.json",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "a5nogbyn4fwphddmfdzsz4embzjxb4"
+            },
+            {
+              "name": "user",
+              "value": "u6fohraib4ef8xwx2m3jeq7j4o9g4k"
+            },
+            {
+              "name": "=title",
+              "value": "=URGENT: {{ $json.subject }}"
+            },
+            {
+              "name": "message",
+              "value": "=--- EMAIL ---\n{{ $('Email Trigger (IMAP)').item.json.textPlain }}\n\nFrom: {{ $json.from }}\n\n--- AI DRAFT ---\n{{ $json.message }}\n\n--- YOUR ACTIONS ---\n<a href=\"{{ $json.approveUrl }}\">✅ APPROVE</a>\n<a href=\"{{ $json.rejectUrl }}\">❌ REJECT</a>"
+            },
+            {
+              "name": "retry",
+              "value": "30"
+            },
+            {
+              "name": "expire",
+              "value": "7200"
+            },
+            {
+              "name": "sound",
+              "value": "siren"
+            },
+            {
+              "name": "priority",
+              "value": "2"
+            },
+            {
+              "name": "html",
+              "value": "1"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1712,
+        832
+      ],
+      "id": "5079caf6-988b-4fa3-8b86-773bbd32199b",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.pushover.net/1/messages.json",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "a5nogbyn4fwphddmfdzsz4embzjxb4"
+            },
+            {
+              "name": "user",
+              "value": "u6fohraib4ef8xwx2m3jeq7j4o9g4k"
+            },
+            {
+              "name": "title",
+              "value": "=Review Needed: {{ $json.subject }}"
+            },
+            {
+              "name": "message",
+              "value": "=--- EMAIL ---\n{{ $('Email Trigger (IMAP)').item.json.textPlain }}\n\nFrom: {{ $json.from }}\n\n--- AI DRAFT ---\n{{ $json.message }}\n\n--- YOUR ACTIONS ---\n<a href=\"{{ $json.approveUrl }}\">✅ APPROVE</a>\n<a href=\"{{ $json.rejectUrl }}\">❌ REJECT</a>"
+            },
+            {
+              "name": "priority",
+              "value": "1"
+            },
+            {
+              "name": "sound",
+              "value": "pushover"
+            },
+            {
+              "name": "html",
+              "value": "1"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1712,
+        1024
+      ],
+      "id": "54e1c4e8-39a1-4877-ba62-80a2231ca60c",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "resume": "webhook",
+        "responseMode": "responseNode",
+        "limitWaitTime": true,
+        "resumeAmount": 4,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1936,
+        928
+      ],
+      "id": "12d01c00-7060-477a-90ae-f00c0608a571",
+      "name": "Wait",
+      "webhookId": "bc86b430-d902-477b-a6c8-28f20d0fcf3a"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "approve-check",
+                    "leftValue": "={{ $json.query.decision }}",
+                    "rightValue": "approve",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "reject-check",
+                    "leftValue": "={{ $json.query.decision }}",
+                    "rightValue": "reject",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "556fbcfa-4e56-42e0-95df-37490f97f5a5",
+      "name": "Check Approval Decision",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        2160,
+        928
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Edit Fields').item.json.from }}",
+        "subject": "=Re: {{ $('Edit Fields').item.json.subject }}",
+        "emailType": "text",
+        "message": "={{ $('Edit Fields').item.json.message }}",
+        "options": {
+          "ccList": "nanaqwadjobarima@gmail.com"
+        }
+      },
+      "id": "37429bfd-65c5-496a-90f9-89dfb5900e18",
+      "name": "Send Approved Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        2384,
+        832
+      ],
+      "webhookId": "c5262895-d390-45aa-8c3e-ddb9bca6a9ec",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "qkcmIIB4OwrGDPAd",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.pushover.net/1/messages.json",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "a5nogbyn4fwphddmfdzsz4embzjxb4"
+            },
+            {
+              "name": "user",
+              "value": "u6fohraib4ef8xwx2m3jeq7j4o9g4k"
+            },
+            {
+              "name": "title",
+              "value": "=TIMEOUT: {{ $('Edit Fields').item.json.subject }}"
+            },
+            {
+              "name": "message",
+              "value": "=No response received within 4 hours for email from {{ $('Edit Fields').item.json.from }}. Draft was not sent."
+            },
+            {
+              "name": "priority",
+              "value": "1"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "794540bf-a8e7-4e78-a158-6d0935b09484",
+      "name": "Notify Timeout",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1664,
+        528
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "subject": "Email Draft Rejected",
+        "message": "This email draft was rejected",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1984,
+        528
+      ],
+      "id": "fb3c2dad-d474-4587-8af1-ad644b757fa9",
+      "name": "Create a draft1",
+      "webhookId": "c47b3c77-3953-467f-8d59-31602edf1035",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "S4MNAlTlJPzjVqBa",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "subject": "Email Drafted",
+        "message": "=--- REJECTED ---\n\n{{ $('Switch1').item.json.message }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        2384,
+        1024
+      ],
+      "id": "2007b0b6-e31e-4bec-bfa6-6e36fed693b9",
+      "name": "Create a draft2",
+      "webhookId": "217e6bfb-7d32-443c-82b0-11f00d7d6ca1",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "S4MNAlTlJPzjVqBa",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Email Trigger (IMAP)": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Date & Time": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Create a draft",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Agent1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Agent2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent1": {
+      "main": [
+        []
+      ]
+    },
+    "Send a message in Gmail": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Switch1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent2",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent2": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Check Approval Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Approval Decision": {
+      "main": [
+        [
+          {
+            "node": "Send Approved Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create a draft2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Timeout": {
+      "main": [
+        [
+          {
+            "node": "Create a draft1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "5f2751b9-19d8-4722-959c-49abae89c727",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e87382d789deaa3a1074b5ce56f328cbfa09b13126cc2089b47340e3dfec0a66"
+  },
+  "id": "2ttgdmHS5y8ZqvGC",
+  "tags": []
+}

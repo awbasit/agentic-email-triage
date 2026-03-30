@@ -1,0 +1,5 @@
+Classify this email.
+
+From: {{ $json.From }}
+Subject: {{ $json.Subject }}
+Body: {{ $json.snippet }}

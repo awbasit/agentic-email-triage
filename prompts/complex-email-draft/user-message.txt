@@ -1,0 +1,10 @@
+Draft a reply to this complex email. This draft will be
+reviewed by a human before sending.
+
+From: {{ $('Email Trigger (IMAP)').item.json.from }}
+Subject: {{ $('Email Trigger (IMAP)').item.json.subject }}
+Email body:
+{{ $('Email Trigger (IMAP)').item.json.textPlain }}
+
+Topic classification: {{ JSON.parse($json.output).topic }}
+Urgency: {{ JSON.parse($json.output).urgency }}
